@@ -10,6 +10,11 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3/internal/tlstest"
+	"github.com/valyala/fasthttp"
+
+	"bufio"
+	"net/http"
+	"net/http/httptest"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -536,4 +541,69 @@ func Test_Response_Save(t *testing.T) {
 		err = resp.Save(nil)
 		require.Error(t, err)
 	})
+}
+
+func TestResponse_BodyStream_StreamResponseBody(t *testing.T) {
+	// Start a local HTTP streaming service
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for i := 0; i < 3; i++ {
+			w.Write([]byte("data: hello\n\n"))
+			w.(http.Flusher).Flush()
+		}
+	}))
+	defer ts.Close()
+
+	fc := &fasthttp.Client{
+		StreamResponseBody: true,
+	}
+	cli := NewWithClient(fc)
+
+	resp, err := AcquireRequest().
+		SetClient(cli).
+		Get(ts.URL)
+	require.NoError(t, err)
+	defer resp.Close()
+
+	// 验证 BodyStream 可用
+	reader := bufio.NewReader(resp.BodyStream())
+	var lines []string
+	for {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		lines = append(lines, line)
+	}
+	// 检查流式内容
+	require.GreaterOrEqual(t, len(lines), 3)
+	for _, l := range lines {
+		require.Contains(t, l, "data: hello")
+	}
+}
+
+func TestResponse_BodyStream_Disabled(t *testing.T) {
+	// Start a local HTTP streaming service
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello world"))
+	}))
+	defer ts.Close()
+
+	fc := &fasthttp.Client{
+		StreamResponseBody: true,
+	}
+	cli := NewWithClient(fc)
+
+	resp, err := AcquireRequest().
+		SetClient(cli).
+		Get(ts.URL)
+	require.NoError(t, err)
+	defer resp.Close()
+
+	// StreamResponseBody 关闭时，BodyStream 依然可用，但内容等同于 Body
+	data, err := io.ReadAll(resp.BodyStream())
+	require.NoError(t, err)
+	require.Equal(t, "hello world", string(data))
+	require.Equal(t, "hello world", string(resp.Body()))
 }

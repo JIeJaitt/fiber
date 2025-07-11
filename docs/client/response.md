@@ -282,3 +282,41 @@ After calling `Close`, any attempt to use the request or response may result in 
 ```go title="Signature"
 func (r *Response) Close()
 ```
+
+## BodyStream
+
+**BodyStream** returns a streaming reader (`io.Reader`) for the response body.  
+When `StreamResponseBody` is enabled, use this method to read the response content on demand, ideal for streaming scenarios such as large files or SSE.
+
+```go title="Signature"
+func (r *Response) BodyStream() io.Reader
+```
+
+<details>
+<summary>Example</summary>
+
+```go
+cli := client.New(client.Config{
+    StreamResponseBody: true,
+})
+resp, err := cli.Get("http://example.com/largefile")
+if err != nil {
+    panic(err)
+}
+defer resp.Close()
+
+reader := bufio.NewReader(resp.BodyStream())
+for {
+    line, err := reader.ReadString('\n')
+    if err != nil {
+        break
+    }
+    fmt.Print(line)
+}
+```
+
+</details>
+
+:::note
+`BodyStream()` only returns a valid streaming reader when `StreamResponseBody` is set to `true`; otherwise, use the `Body()` method to retrieve the complete response body.
+:::

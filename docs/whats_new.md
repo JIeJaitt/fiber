@@ -611,6 +611,38 @@ app.Get("/hello", func (c fiber.Ctx) error {
 The Gofiber client has been completely rebuilt. It includes numerous new features such as Cookiejar, request/response hooks, and more.
 You can take a look to [client docs](./client/rest.md) to see what's new with the client.
 
+### StreamResponseBody Support
+
+Fiber v3's HTTP Client now supports fasthttp's underlying `StreamResponseBody` feature.  
+When this option is enabled, the response body is not read into memory all at once; instead, it can be streamed progressively via `io.Reader`, making it ideal for large file downloads, SSE (Server-Sent Events), and similar scenarios.
+
+**How to enable:**
+
+```go
+cli := client.New(client.Config{
+    StreamResponseBody: true,
+})
+resp, err := cli.Get("http://example.com/largefile")
+if err != nil {
+    panic(err)
+}
+defer resp.Close()
+
+reader := bufio.NewReader(resp.BodyStream())
+for {
+    line, err := reader.ReadString('\n')
+    if err != nil {
+        break
+    }
+    fmt.Print(line)
+}
+```
+
+- Enable streaming response body via the `StreamResponseBody: true` configuration.
+- Obtain an `io.Reader` through `resp.BodyStream()` to read the response content on demand.
+
+This feature is built on top of fasthttp’s `StreamResponseBody`; see the fasthttp documentation for detailed usage.
+
 ## 📎 Binding
 
 Fiber v3 introduces a new binding mechanism that simplifies the process of binding request data to structs. The new binding system supports binding from various sources such as URL parameters, query parameters, headers, and request bodies. This unified approach makes it easier to handle different types of request data in a consistent manner.

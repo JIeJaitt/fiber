@@ -58,6 +58,8 @@ type Client struct {
 	timeout time.Duration
 	mu      sync.RWMutex
 	debug   bool
+
+	StreamResponseBody bool
 }
 
 // R creates a new Request associated with the client.
@@ -663,6 +665,8 @@ func NewWithClient(c *fasthttp.Client) *Client {
 		cborUnmarshal:        cbor.Unmarshal,
 		xmlUnmarshal:         xml.Unmarshal,
 		logger:               log.DefaultLogger(),
+
+		StreamResponseBody: c.StreamResponseBody,
 	}
 }
 

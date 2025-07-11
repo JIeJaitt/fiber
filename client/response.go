@@ -183,6 +183,13 @@ func (r *Response) Close() {
 	ReleaseResponse(r)
 }
 
+func (r *Response) BodyStream() io.Reader {
+	if r == nil || r.RawResponse == nil {
+		return nil
+	}
+	return r.RawResponse.BodyStream() // resp is fasthttp.Response
+}
+
 var responsePool = &sync.Pool{
 	New: func() any {
 		return &Response{
