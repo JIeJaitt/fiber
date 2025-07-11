@@ -188,8 +188,20 @@ func (r *Response) BodyStream() io.Reader {
 		return nil
 	}
 
-	r.RawResponse.StreamBody = true
-	return r.RawResponse.BodyStream() // resp is fasthttp.Response
+	// 如果客户端启用了 StreamResponseBody，则设置 StreamBody
+	if r.client != nil && r.client.StreamResponseBody {
+		r.RawResponse.StreamBody = true
+	}
+
+	stream := r.RawResponse.BodyStream()
+
+	if stream == nil && r.client != nil && r.client.debug {
+		r.client.logger.Info("BodyStream is nil",
+			"body_length", len(r.RawResponse.Body()),
+			"stream_body", r.RawResponse.StreamBody)
+	}
+
+	return stream
 }
 
 var responsePool = &sync.Pool{

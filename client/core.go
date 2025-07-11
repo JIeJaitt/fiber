@@ -84,6 +84,7 @@ func (c *core) execFunc() (*Response, error) {
 	var err error
 	go func() {
 		respv := fasthttp.AcquireResponse()
+		respv.StreamBody = c.client.StreamResponseBody
 		defer func() {
 			fasthttp.ReleaseRequest(reqv)
 			fasthttp.ReleaseResponse(respv)
@@ -111,6 +112,8 @@ func (c *core) execFunc() (*Response, error) {
 				return
 			}
 			respv.CopyTo(resp.RawResponse)
+			resp.RawResponse.StreamBody = respv.StreamBody
+
 			errCh <- nil
 		}
 	}()

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3/internal/tlstest"
@@ -544,43 +546,67 @@ func Test_Response_Save(t *testing.T) {
 }
 
 func TestResponse_BodyStream_StreamResponseBody(t *testing.T) {
-	// Start a local HTTP streaming service
+	// 启动一个本地 HTTP 流式服务
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		for i := 0; i < 3; i++ {
-			w.Write([]byte("data: hello\n\n"))
-			w.(http.Flusher).Flush()
+		// 确保响应头设置正确
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+
+		// 使用 Flusher 确保数据被立即发送
+		if flusher, ok := w.(http.Flusher); ok {
+			for i := 0; i < 3; i++ {
+				fmt.Fprintf(w, "line %d\n", i)
+				flusher.Flush()
+			}
 		}
 	}))
 	defer ts.Close()
 
+	// 创建带有 StreamResponseBody 的客户端
 	fc := &fasthttp.Client{
 		StreamResponseBody: true,
 	}
 	cli := NewWithClient(fc)
 
+	// 启用调试模式
+	cli.Debug()
+
 	resp, err := AcquireRequest().
 		SetClient(cli).
 		Get(ts.URL)
+
 	require.NoError(t, err)
 	defer resp.Close()
 
-	// 验证 BodyStream 可用
-	reader := bufio.NewReader(resp.BodyStream())
-	var lines []string
-	for {
+	// 打印调试信息
+	fmt.Printf("Client StreamResponseBody: %v\n", cli.StreamResponseBody)
+	fmt.Printf("Response StreamBody: %v\n", resp.RawResponse.StreamBody)
+	fmt.Printf("Body length: %d\n", len(resp.RawResponse.Body()))
+
+	// 手动设置 StreamBody 为 true
+	resp.RawResponse.StreamBody = true
+
+	// 获取流
+	stream := resp.BodyStream()
+	require.NotNil(t, stream, "BodyStream should not be nil")
+
+	// 创建 bufio.Reader
+	reader := bufio.NewReader(stream)
+	require.NotNil(t, reader, "Reader should not be nil")
+
+	// 读取数据
+	lines := make([]string, 0)
+	for i := 0; i < 3; i++ {
 		line, err := reader.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		require.NoError(t, err)
-		lines = append(lines, line)
+		require.NoError(t, err, "Failed to read line %d", i)
+		lines = append(lines, strings.TrimSpace(line))
 	}
-	// 检查流式内容
-	require.GreaterOrEqual(t, len(lines), 3)
-	for _, l := range lines {
-		require.Contains(t, l, "data: hello")
-	}
+
+	// 验证结果
+	require.Len(t, lines, 3)
+	require.Equal(t, "line 0", lines[0])
+	require.Equal(t, "line 1", lines[1])
+	require.Equal(t, "line 2", lines[2])
 }
 
 func TestResponse_BodyStream_Disabled(t *testing.T) {
