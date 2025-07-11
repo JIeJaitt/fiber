@@ -187,6 +187,8 @@ func (r *Response) BodyStream() io.Reader {
 	if r == nil || r.RawResponse == nil {
 		return nil
 	}
+
+	r.RawResponse.StreamBody = true
 	return r.RawResponse.BodyStream() // resp is fasthttp.Response
 }
 

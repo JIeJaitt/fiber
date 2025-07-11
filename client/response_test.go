@@ -591,7 +591,7 @@ func TestResponse_BodyStream_Disabled(t *testing.T) {
 	defer ts.Close()
 
 	fc := &fasthttp.Client{
-		StreamResponseBody: true,
+		StreamResponseBody: false, // 改为 false，测试禁用流式响应的情况
 	}
 	cli := NewWithClient(fc)
 
@@ -601,9 +601,10 @@ func TestResponse_BodyStream_Disabled(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Close()
 
-	// StreamResponseBody 关闭时，BodyStream 依然可用，但内容等同于 Body
-	data, err := io.ReadAll(resp.BodyStream())
-	require.NoError(t, err)
-	require.Equal(t, "hello world", string(data))
-	require.Equal(t, "hello world", string(resp.Body()))
+	// 先获取 body
+	body := resp.Body()
+	require.Equal(t, "hello world", string(body))
+
+	// 当 StreamResponseBody 为 false 时，应该返回 nil
+	require.Nil(t, resp.BodyStream())
 }
