@@ -1733,3 +1733,113 @@ func Benchmark_Client_Request_Parallel(b *testing.B) {
 		require.NoError(b, err)
 	})
 }
+
+func TestClient_SetStreamResponseBody(t *testing.T) {
+	t.Parallel()
+
+	client := New()
+
+	// Test default value
+	require.False(t, client.StreamResponseBody)
+	require.False(t, client.fasthttp.StreamResponseBody)
+
+	// Test enabling stream response body
+	client.SetStreamResponseBody(true)
+	require.True(t, client.StreamResponseBody)
+	require.True(t, client.fasthttp.StreamResponseBody)
+
+	// Test disabling stream response body
+	client.SetStreamResponseBody(false)
+	require.False(t, client.StreamResponseBody)
+	require.False(t, client.fasthttp.StreamResponseBody)
+}
+
+func TestClient_StreamResponseBody_Integration(t *testing.T) {
+	t.Parallel()
+
+	app, dial, start := createHelperServer(t)
+	app.Get("/stream", func(c fiber.Ctx) error {
+		c.Set("Content-Type", "text/plain")
+		return c.SendString("hello world from stream")
+	})
+
+	go start()
+
+	client := New().SetDial(dial).SetStreamResponseBody(true)
+
+	resp, err := client.Get("http://example.com/stream")
+	require.NoError(t, err)
+	defer resp.Close()
+
+	require.True(t, client.StreamResponseBody)
+
+	// Test that we can read from the body stream
+	bodyStream := resp.BodyStream()
+	require.NotNil(t, bodyStream)
+
+	data, err := io.ReadAll(bodyStream)
+	require.NoError(t, err)
+	require.Equal(t, "hello world from stream", string(data))
+}
+
+func TestRequest_SetStreamResponseBody(t *testing.T) {
+	t.Parallel()
+
+	app, dial, start := createHelperServer(t)
+	app.Get("/stream", func(c fiber.Ctx) error {
+		c.Set("Content-Type", "text/plain")
+		return c.SendString("request level stream")
+	})
+
+	go start()
+
+	client := New().SetDial(dial)
+	require.False(t, client.StreamResponseBody)
+
+	// Test request-level StreamResponseBody override
+	req := client.R().SetStreamResponseBody(true)
+	resp, err := req.Get("http://example.com/stream")
+	require.NoError(t, err)
+	defer resp.Close()
+
+	// Client-level should still be false
+	require.False(t, client.StreamResponseBody)
+
+	// But we should still get a stream
+	bodyStream := resp.BodyStream()
+	require.NotNil(t, bodyStream)
+
+	data, err := io.ReadAll(bodyStream)
+	require.NoError(t, err)
+	require.Equal(t, "request level stream", string(data))
+}
+
+func TestConfig_StreamResponseBody(t *testing.T) {
+	t.Parallel()
+
+	app, dial, start := createHelperServer(t)
+	app.Get("/stream", func(c fiber.Ctx) error {
+		c.Set("Content-Type", "text/plain")
+		return c.SendString("config level stream")
+	})
+
+	go start()
+
+	client := New().SetDial(dial)
+	require.False(t, client.StreamResponseBody)
+
+	// Test using Config to set StreamResponseBody
+	streamEnabled := true
+	resp, err := client.Get("http://example.com/stream", Config{
+		StreamResponseBody: &streamEnabled,
+	})
+	require.NoError(t, err)
+	defer resp.Close()
+
+	bodyStream := resp.BodyStream()
+	require.NotNil(t, bodyStream)
+
+	data, err := io.ReadAll(bodyStream)
+	require.NoError(t, err)
+	require.Equal(t, "config level stream", string(data))
+}

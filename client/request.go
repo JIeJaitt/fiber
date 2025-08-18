@@ -64,8 +64,9 @@ type Request struct {
 	referer    string
 	files      []*File
 
-	timeout      time.Duration
-	maxRedirects int
+	timeout            time.Duration
+	maxRedirects       int
+	streamResponseBody *bool
 
 	bodyType bodyType
 }
@@ -590,6 +591,14 @@ func (r *Request) SetMaxRedirects(count int) *Request {
 	return r
 }
 
+// SetStreamResponseBody enables or disables streaming response body for this request.
+// When enabled, the response body is streamed instead of being buffered in memory.
+// This setting overrides the client-level StreamResponseBody configuration for this request.
+func (r *Request) SetStreamResponseBody(stream bool) *Request {
+	r.streamResponseBody = &stream
+	return r
+}
+
 // checkClient ensures that a Client is set. If none is set, it defaults to the global defaultClient.
 func (r *Request) checkClient() {
 	if r.client == nil {
@@ -654,6 +663,7 @@ func (r *Request) Reset() {
 	r.body = nil
 	r.timeout = 0
 	r.maxRedirects = 0
+	r.streamResponseBody = nil
 	r.bodyType = noBody
 	r.boundary = boundary
 

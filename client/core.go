@@ -84,7 +84,12 @@ func (c *core) execFunc() (*Response, error) {
 	var err error
 	go func() {
 		respv := fasthttp.AcquireResponse()
-		respv.StreamBody = c.client.StreamResponseBody
+		// Use request-level StreamResponseBody if set, otherwise fall back to client-level
+		if c.req.streamResponseBody != nil {
+			respv.StreamBody = *c.req.streamResponseBody
+		} else {
+			respv.StreamBody = c.client.StreamResponseBody
+		}
 		defer func() {
 			fasthttp.ReleaseRequest(reqv)
 			fasthttp.ReleaseResponse(respv)

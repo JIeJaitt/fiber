@@ -437,6 +437,15 @@ func (c *Client) DisableDebug() *Client {
 	return c
 }
 
+// SetStreamResponseBody enables or disables streaming response body.
+// When enabled, the response body is streamed instead of being buffered in memory.
+// This is useful for handling large responses or Server-Sent Events (SSE).
+func (c *Client) SetStreamResponseBody(stream bool) *Client {
+	c.StreamResponseBody = stream
+	c.fasthttp.StreamResponseBody = stream
+	return c
+}
+
 // SetCookieJar sets the cookie jar for the client.
 func (c *Client) SetCookieJar(cookieJar *CookieJar) *Client {
 	c.cookieJar = cookieJar
@@ -547,18 +556,19 @@ func (c *Client) Reset() {
 // JSON is used as the default serialization mechanism. The priority is:
 // Body > FormData > File.
 type Config struct {
-	Ctx          context.Context //nolint:containedctx // It's needed to be stored in the config.
-	Body         any
-	Header       map[string]string
-	Param        map[string]string
-	Cookie       map[string]string
-	PathParam    map[string]string
-	FormData     map[string]string
-	UserAgent    string
-	Referer      string
-	File         []*File
-	Timeout      time.Duration
-	MaxRedirects int
+	Ctx                context.Context //nolint:containedctx // It's needed to be stored in the config.
+	Body               any
+	Header             map[string]string
+	Param              map[string]string
+	Cookie             map[string]string
+	PathParam          map[string]string
+	FormData           map[string]string
+	UserAgent          string
+	Referer            string
+	File               []*File
+	Timeout            time.Duration
+	MaxRedirects       int
+	StreamResponseBody *bool
 }
 
 // setConfigToRequest sets the parameters passed via Config to the Request.
@@ -602,6 +612,10 @@ func setConfigToRequest(req *Request, config ...Config) {
 
 	if cfg.MaxRedirects != 0 {
 		req.SetMaxRedirects(cfg.MaxRedirects)
+	}
+
+	if cfg.StreamResponseBody != nil {
+		req.SetStreamResponseBody(*cfg.StreamResponseBody)
 	}
 
 	if cfg.Body != nil {
