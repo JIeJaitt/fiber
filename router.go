@@ -7,7 +7,6 @@ package fiber
 import (
 	"bytes"
 	"fmt"
-	"html"
 	"slices"
 	"sync/atomic"
 
@@ -117,7 +116,6 @@ func (app *App) next(c *DefaultCtx) (bool, error) {
 	lenr := len(tree) - 1
 
 	indexRoute := c.indexRoute
-	var err error
 
 	// Loop over the route stack starting from previous index
 	for indexRoute < lenr {
@@ -153,17 +151,15 @@ func (app *App) next(c *DefaultCtx) (bool, error) {
 	}
 
 	// If c.Next() does not match, return 404
-	err = NewError(StatusNotFound, "Cannot "+c.Method()+" "+html.EscapeString(c.getPathOriginal()))
-
 	// If no match, scan stack again if other methods match the request
 	// Moved from app.handler because middleware may break the route chain
 	if c.matched {
-		return false, err
+		return false, ErrNotFound
 	}
 
 	exists := false
 	methods := app.config.RequestMethods
-	for i := 0; i < len(methods); i++ {
+	for i := range methods {
 		// Skip original method
 		if methodInt == i {
 			continue
@@ -201,9 +197,9 @@ func (app *App) next(c *DefaultCtx) (bool, error) {
 		c.indexRoute = indexRoute
 	}
 	if exists {
-		err = ErrMethodNotAllowed
+		return false, ErrMethodNotAllowed
 	}
-	return false, err
+	return false, ErrNotFound
 }
 
 func (app *App) nextCustom(c CustomCtx) (bool, error) {
@@ -217,7 +213,6 @@ func (app *App) nextCustom(c CustomCtx) (bool, error) {
 	lenr := len(tree) - 1
 
 	indexRoute := c.getIndexRoute()
-	var err error
 
 	// Loop over the route stack starting from previous index
 	for indexRoute < lenr {
@@ -251,17 +246,15 @@ func (app *App) nextCustom(c CustomCtx) (bool, error) {
 	}
 
 	// If c.Next() does not match, return 404
-	err = NewError(StatusNotFound, "Cannot "+c.Method()+" "+html.EscapeString(c.getPathOriginal()))
-
 	// If no match, scan stack again if other methods match the request
 	// Moved from app.handler because middleware may break the route chain
 	if c.getMatched() {
-		return false, err
+		return false, ErrNotFound
 	}
 
 	exists := false
 	methods := app.config.RequestMethods
-	for i := 0; i < len(methods); i++ {
+	for i := range methods {
 		// Skip original method
 		if methodInt == i {
 			continue
@@ -299,9 +292,9 @@ func (app *App) nextCustom(c CustomCtx) (bool, error) {
 		c.setIndexRoute(indexRoute)
 	}
 	if exists {
-		err = ErrMethodNotAllowed
+		return false, ErrMethodNotAllowed
 	}
-	return false, err
+	return false, ErrNotFound
 }
 
 func (app *App) requestHandler(rctx *fasthttp.RequestCtx) {
@@ -639,10 +632,9 @@ func (app *App) buildTree() *App {
 				}
 
 				// if it's a global route, assign to every bucket
-				if routePath == 0 {
-					tsMap[treePath] = append(tsMap[treePath], route)
-					// otherwise only assign if this route's prefix matches the current bucket's key
-				} else if routePath == treePath {
+				// If the route path is 0 (global route) or matches the current tree path,
+				// append this route to the current bucket
+				if routePath == 0 || routePath == treePath {
 					tsMap[treePath] = append(tsMap[treePath], route)
 				}
 			}
