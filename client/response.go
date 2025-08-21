@@ -188,17 +188,15 @@ func (r *Response) BodyStream() io.Reader {
 		return nil
 	}
 
-	// 如果客户端启用了 StreamResponseBody，则设置 StreamBody
-	if r.client != nil && r.client.StreamResponseBody {
-		r.RawResponse.StreamBody = true
-	}
-
+	// StreamBody should already be set in core.go before the request is made
+	// Setting it here is too late and will not work
 	stream := r.RawResponse.BodyStream()
 
 	if stream == nil && r.client != nil && r.client.debug {
 		r.client.logger.Info("BodyStream is nil",
 			"body_length", len(r.RawResponse.Body()),
-			"stream_body", r.RawResponse.StreamBody)
+			"stream_body", r.RawResponse.StreamBody,
+			"client_stream_response_body", r.client.StreamResponseBody)
 	}
 
 	return stream
